@@ -4,7 +4,6 @@ using System.Net.NetworkInformation;
 
 using OpenQA.Selenium;
 using OpenQA.Selenium.Chrome;
-using OpenQA.Selenium.DevTools.V122.Network;
 using OpenQA.Selenium.Support.UI;
 
 namespace L13AutoRestart
@@ -13,108 +12,91 @@ namespace L13AutoRestart
     {
         private struct AutoRestartConfig
         {
-            public AutoRestartConfig(string homeUrl, string loginUrl, string restartSettingUrl, string passwordBoxId, string loginButtonId, string restartFormButtonsClassName, string restartFormButtonsInRestartButtonClassName, string restartApplyButtonId, string password)
-            {
-                this.HomeUrl = homeUrl;
-                this.LoginUrl = loginUrl;
-                this.RestartSettingUrl = restartSettingUrl;
-                this.PasswordBoxId = passwordBoxId;
-                this.LoginButtonId = loginButtonId;
-                this.RestartFormButtonsClassName = restartFormButtonsClassName;
-                this.RestartFormButtonsInRestartButtonClassName = restartFormButtonsInRestartButtonClassName;
-                this.RestartApplyButtonId = restartApplyButtonId;
-                this.Password = password;
-            }
             /// <summary> ホーム画面のURL </summary>
-            public string HomeUrl { get; init; }
+            public string HomeUrl { get; set; }
 
             /// <summary> ログイン画面のURL </summary>
-            public string LoginUrl {  get; init; }
+            public string LoginUrl { get; set; }
 
             /// <summary> 再起動設定のURL </summary>
-            public string RestartSettingUrl { get; init; }
+            public string RestartSettingUrl { get; set; }
 
             /// <summary> パスワード入力BOXのID </summary>
-            public string PasswordBoxId { get; init; }
+            public string PasswordBoxId { get; set; }
 
             /// <summary> ログインボタンのID </summary>
-            public string LoginButtonId { get; init; }
+            public string LoginButtonId { get; set; }
 
             /// <summary> 再起動設定画面のボタンフォームクラス名 </summary>
-            public string RestartFormButtonsClassName { get; init; }
+            public string RestartFormButtonsClassName { get; set; }
 
             /// <summary> 再起動設定画面のボタンフォームクラス内の再起動ボタンクラス名 </summary>
-            public string RestartFormButtonsInRestartButtonClassName { get; init; }
+            public string RestartFormButtonsInRestartButtonClassName { get; set; }
 
             /// <summary> 再起動確認ボタンのID </summary>
-            public string RestartApplyButtonId { get; init; }
+            public string RestartApplyButtonId { get; set; }
 
             /// <summary> パスワード </summary>
-            public string Password { get; init; }
+            public string Password { get; set; }
         }
 
         public static void Main(string[] args)
         {
-            // L13の再起動実行したか(1度実行すると5分間はtrueのまま)
-            bool isExecuteRestartL13 = false;
-            int executedTimerCount = 0;
-
-            // 1分に1回タイマーでネットワーク接続の確認を実行する (1000 * 60) * 1
-            System.Timers.Timer timer = new System.Timers.Timer(1000);
-            timer.Elapsed += (sender, e) =>
+            IWebDriver webDriver;
+            if (args.Length > 0)
             {
-                if (isExecuteRestartL13)
+                webDriver = new ChromeDriver(args[0]);
+            }
+            else
+            {
+                webDriver = new ChromeDriver();
+            }
+
+            AutoRestartConfig config = new AutoRestartConfig();
+
+            using (StreamReader reader = new StreamReader("Settings/AccessInfo.conf"))
+            {
+                string confStr = reader.ReadToEnd().Replace(" ", "");
+                string[] settings = confStr.Split(separator: Environment.NewLine);
+
+                foreach (var conf in settings)
                 {
-                    // 再起動実行後、5分以内は再度実行しない
-                    if (executedTimerCount >= 50)
+                    string[] keyValueConf = conf.Split(separator: "=");
+
+                    switch (keyValueConf[0])
                     {
-                        isExecuteRestartL13 = false;
-                        executedTimerCount = 0;
-                    }
-                    else
-                    {
-                        executedTimerCount++;
+                        case "HOME_URL": 
+                            config.HomeUrl = keyValueConf[1];
+                            break;
+                        case "LOGIN_URL":
+                            config.LoginUrl = keyValueConf[1];
+                            break;
+                        case "RESTART_URL":
+                            config.RestartSettingUrl = keyValueConf[1];
+                            break;
+                        case "PASSWORD_BOX_ID":
+                            config.PasswordBoxId = keyValueConf[1];
+                            break;
+                        case "LOGIN_BUTTON_ID":
+                            config.LoginButtonId = keyValueConf[1];
+                            break;
+                        case "RESTART_FORM_CLASS_NAME":
+                            config.RestartFormButtonsClassName = keyValueConf[1];
+                            break;
+                        case "RESTART_BUTTON_CLASS_NAME":
+                            config.RestartFormButtonsInRestartButtonClassName = keyValueConf[1];
+                            break;
+                        case "RESTART_APPLY_BUTTON_ID":
+                            config.RestartApplyButtonId = keyValueConf[1];
+                            break;
+                        case "PASSWORD":
+                            config.Password = keyValueConf[1];
+                            break;
+                        default:
+                            break;
                     }
                 }
-                else
-                {
-                    // wnkr.tech -> google.comの順にチェックし、どちらも応答なかったらネット接続なしと判断
-                    if (!isEnabledInternetAccessForPing("wnkr.tech"))
-                    {
-                        Console.WriteLine("[wnkr.tech] ping error");
-                        if (!isEnabledInternetAccessForPing("google.com"))
-                        {
-                            Console.WriteLine("[google.com] ping error");
-
-                            // インターネットに接続できていなければL13を再起動する
-                            isExecuteRestartL13 = true;
-                            executedTimerCount = 0;
-                            restartL13WiFiRouter();
-                        }
-                    }
-                }
-            };
-
-            timer.Start();
-
-            Console.ReadKey();
-        }
-
-        private static void restartL13WiFiRouter()
-        {
-            AutoRestartConfig config = new AutoRestartConfig(
-                "empty(test data)",
-                "empty(test data)",
-                "empty(test data)",
-                "empty(test data)",
-                "empty(test data)",
-                "empty(test data)",
-                "empty(test data)",
-                "empty(test data)",
-                "empty(test data)"
-            );
-
-            IWebDriver webDriver = new ChromeDriver();
+            }
 
             try
             {
@@ -162,37 +144,16 @@ namespace L13AutoRestart
                     restartApplyButton.Click();
                 }
             }
-            catch
+            catch (Exception e)
             {
-                throw;
+                Console.WriteLine(e.Message);
             }
 
+            // ドライバの破棄
             webDriver.Quit();
-        }
 
-        private static bool isEnabledInternetAccessForPing(string domainName)
-        {
-            bool isSuccess = false;
-
-            try
-            {
-                var ping = new Ping();
-                var replies = new List<PingReply>();
-
-                for (int i = 0; i < 5; i++)
-                {
-                    var reply = ping.Send(domainName);
-                    replies.Add(reply);
-                }
-
-                isSuccess = replies.Any(reply => reply.Status == IPStatus.Success);
-            }
-            catch
-            {
-                isSuccess = false;
-            }
-
-            return isSuccess;
+            // 終了
+            Environment.Exit(0);
         }
     }
 }
